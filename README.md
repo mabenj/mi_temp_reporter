@@ -14,8 +14,8 @@ Every hour (configurable) the script:
 ### Pre-requisites
 
 - Python 3.6+
-- [JsBergbau/MiTemperature2]([https://github.com/JsBergbau/MiTemperature2])
-- Xiaomi LYWSD03MMC sensor (running [ATC/pvvx firmware]([https://github.com/pvvx/ATC_MiThermometer]))
+- [JsBergbau/MiTemperature2](https://github.com/JsBergbau/MiTemperature2)
+- Xiaomi LYWSD03MMC sensor (running [ATC/pvvx firmware](https://github.com/pvvx/ATC_MiThermometer))
 
 ### Clone
 
@@ -63,7 +63,7 @@ journalctl -u mi_temp_reporter-service --since "1 hour ago"
 
 ```json
 {
-  "sensorname": "living-room", // Alias from sensors.ini, or raw MAC if no alias defined
+  "sensorname": "AA:BB:CC:DD:EE:FF",
   "temperature": "21.3",
   "humidity": "45.0",
   "voltage": "2.98",
