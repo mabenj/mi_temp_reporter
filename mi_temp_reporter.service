@@ -1,0 +1,33 @@
+[Unit]
+Description=Xiaomi MiTemperature2 → HTTP API Reporter
+After=network-online.target bluetooth.target
+Wants=network-online.target bluetooth.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+
+# Full path to the reporter script
+ExecStart=/usr/bin/python3 /home/pi/git/mi_temp_reporter.py --config /home/pi/git/mi_temp_reporter.conf
+
+# Restart on any failure, with an increasing back-off cap
+Restart=on-failure
+RestartSec=30s
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+# Give bluetooth time to initialise on startup
+ExecStartPre=/bin/sleep 10
+
+# Kill the whole process group on stop so MiTemperature2 subprocess also dies
+KillMode=process-group
+TimeoutStopSec=30
+
+# Logging (also writes to log_file configured above)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mi_temp_reporter
+
+[Install]
+WantedBy=multi-user.target
