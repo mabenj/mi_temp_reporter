@@ -83,7 +83,7 @@ def setup_logging(cfg: dict) -> logging.Logger:
     )
     # Console handler
     ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
+    ch.setLevel(logging.DEBUG)
     ch.setFormatter(fmt)
     logger.addHandler(ch)
 
@@ -134,7 +134,9 @@ def build_mitemp_command(cfg: dict, callback_script: str) -> list[str]:
         cfg["mitemp_script"],
         "--callback", callback_script,
         "--watchdogtimer", str(cfg["watchdog_timer"]),
-        "--interface", str(cfg["bt_interface"]),
+        # "--interface", str(cfg["bt_interface"]),
+        "--devicelistfile", cfg["devicelist_file"],
+        "--onlydevicelist",
         "--round",
         "--battery",
     ]
@@ -202,6 +204,7 @@ def collect_reading(cfg: dict, logger: logging.Logger) -> dict | None:
                     lines = [l.strip() for l in df if l.strip()]
                 if lines:
                     for line in lines:
+                        logger.debug("Raw callback line: %s", line)
                         try:
                             reading = json.loads(line)
                             if isinstance(reading.get("temperature"), str):

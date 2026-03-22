@@ -87,3 +87,12 @@ Add the following line:
 # Reboot daily at 03:00
 0 3 * * * /sbin/reboot
 ```
+
+## Troubleshooting
+
+### Bluetooth not working
+
+```bash
+rfkill
+rfkill unblock bluetooth
+```
