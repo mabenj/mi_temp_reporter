@@ -235,16 +235,16 @@ def collect_reading(cfg: dict, logger: logging.Logger) -> dict | None:
 
 def parse_reading(line: str) -> dict:
     parts = line.split()
-    if len(parts) != 6:
+    if len(parts) != 7:
         raise ValueError(f"Unexpected callback line format: {line}")
-    sensorname, temperature, humidity, voltage, timestamp, battery = parts
+    sensorname, temperature, humidity, voltage, batteryLevel, timestamp = parts
     return {
         "sensorname": sensorname,
         "temperature": temperature,
         "humidity": humidity,
         "voltage": voltage,
         "timestamp": timestamp,
-        "batteryLevel": battery,
+        "batteryLevel": batteryLevel,
     }
 
 def post_reading(reading: dict, cfg: dict, logger: logging.Logger) -> bool:
