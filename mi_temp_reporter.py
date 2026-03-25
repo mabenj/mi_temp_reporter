@@ -127,14 +127,14 @@ def load_config(config_file: str | None) -> dict:
     return cfg
 
 
-def build_mitemp_command(cfg: dict, callback_script: str) -> list[str]:
+def build_mitemp_command(cfg: dict) -> list[str]:
     """Build the MiTemperature2.py command with a shell callback."""
     cmd = [
         sys.executable,
         cfg["mitemp_script"],
-        "--callback", callback_script,
+        "--callback", "sendToFile.sh",
         "--watchdogtimer", str(cfg["watchdog_timer"]),
-        # "--interface", str(cfg["bt_interface"]),
+        "--interface", str(cfg["bt_interface"]),
         "--devicelistfile", cfg["devicelist_file"],
         "--onlydevicelist",
         "--round",
@@ -154,31 +154,12 @@ def collect_reading(cfg: dict, logger: logging.Logger) -> dict | None:
     scan_timeout = int(cfg["scan_timeout_seconds"])
     readings: list[dict] = []
     readings_lock = threading.Lock()
-
-    # Create a temporary callback script that appends JSON lines to a temp file
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".sh", delete=False, prefix="mi_cb_"
-    ) as cb_file:
-        cb_path = cb_file.name
-        # MiTemperature2 passes values as positional args:
-        # $1=format  $2=sensorname  $3=temp  $4=humidity  $5=voltage  $6=timestamp
-        # (more fields added depending on --battery, --rssi flags)
-        cb_file.write(
-           "#!/bin/sh\n"
-            "echo \"{\\\"sensorname\\\":\\\"$2\\\",\\\"temperature\\\":\\\"$3\\\","
-            "\\\"humidity\\\":\\\"$4\\\",\\\"voltage\\\":\\\"$5\\\","
-            "\\\"timestamp\\\":\\\"$6\\\",\\\"battery\\\":\\\"$7\\\"}\""
-            f" >> {cb_path}.data\n"
-        )
-    os.chmod(cb_path, 0o755)
-    data_path = cb_path + ".data"
-    # Ensure data file exists and is empty
-    open(data_path, "w").close()
+    data_path = "data.txt" # sendToFile.sh writes here
 
     proc = None
     try:
         logger.info("Starting BLE scan (timeout %d s) …", scan_timeout)
-        cmd = build_mitemp_command(cfg, cb_path)
+        cmd = build_mitemp_command(cfg)
         logger.debug("Command: %s", " ".join(cmd))
 
         proc = subprocess.Popen(
@@ -198,7 +179,6 @@ def collect_reading(cfg: dict, logger: logging.Logger) -> dict | None:
                 logger.warning("MiTemperature2 exited early (code %d).", proc.returncode)
                 break
 
-            # Check for new callback data
             try:
                 with open(data_path) as df:
                     lines = [l.strip() for l in df if l.strip()]
@@ -206,7 +186,7 @@ def collect_reading(cfg: dict, logger: logging.Logger) -> dict | None:
                     for line in lines:
                         logger.debug("Raw callback line: %s", line)
                         try:
-                            reading = json.loads(line)
+                            reading = parse_reading(line)
                             if isinstance(reading.get("temperature"), str):
                                 last_reading = reading
                         except json.JSONDecodeError:
@@ -247,13 +227,25 @@ def collect_reading(cfg: dict, logger: logging.Logger) -> dict | None:
                 pass
             except Exception as kill_exc:
                 logger.warning("Error killing MiTemperature2: %s", kill_exc)
-        # Clean up temp files
-        for p in (cb_path, data_path):
-            try:
-                os.unlink(p)
-            except OSError:
-                pass
+        # cleanup data file
+        try:
+            os.remove(data_path)
+        except OSError:
+            pass
 
+def parse_reading(line: str) -> dict:
+    parts = line.split()
+    if len(parts) != 6:
+        raise ValueError(f"Unexpected callback line format: {line}")
+    sensorname, temperature, humidity, voltage, timestamp, battery = parts
+    return {
+        "sensorname": sensorname,
+        "temperature": temperature,
+        "humidity": humidity,
+        "voltage": voltage,
+        "timestamp": timestamp,
+        "batteryLevel": battery,
+    }
 
 def post_reading(reading: dict, cfg: dict, logger: logging.Logger) -> bool:
     """POST the reading as JSON to the configured API endpoint.  Returns True on success."""
