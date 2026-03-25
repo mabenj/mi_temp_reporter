@@ -237,7 +237,7 @@ def parse_reading(line: str) -> dict:
     parts = line.split()
     if len(parts) != 7:
         raise ValueError(f"Unexpected callback line format: {line}")
-    sensorname, temperature, humidity, voltage, batteryLevel, timestamp = parts
+    _, sensorname, temperature, humidity, voltage, batteryLevel, timestamp = parts
     return {
         "sensorname": sensorname,
         "temperature": temperature,
