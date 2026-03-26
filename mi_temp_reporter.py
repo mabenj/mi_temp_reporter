@@ -197,7 +197,7 @@ def collect_reading(cfg: dict, logger: logging.Logger) -> dict | None:
 
         if last_reading:
             logger.info(
-                "Reading: temp=%.1s°C  hum=%.0s%%  sensor=%s",
+                "Reading: temp=%s°C  hum=%s  sensor=%s",
                 last_reading.get("temperature", "?"),
                 last_reading.get("humidity", "?"),
                 last_reading.get("sensorname", "?"),
