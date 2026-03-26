@@ -184,10 +184,9 @@ def collect_reading(cfg: dict, logger: logging.Logger) -> dict | None:
                     lines = [l.strip() for l in df if l.strip()]
                 if lines:
                     for line in lines:
-                        logger.debug("Raw callback line: %s", line)
                         try:
                             reading = parse_reading(line)
-                            if isinstance(reading.get("temperature"), str):
+                            if reading.get("temperature") and reading.get("humidity"):
                                 last_reading = reading
                         except json.JSONDecodeError:
                             pass
