@@ -24,6 +24,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -137,6 +138,8 @@ def build_mitemp_command(cfg: dict) -> list[str]:
         "--interface", str(cfg["bt_interface"]),
         "--devicelistfile", cfg["devicelist_file"],
         "--onlydevicelist",
+        # Without it, a BTHome battery packet heard before any data packet is reported as 0 °C, 0 %
+        "--bthome-onlyfull-transmit",
         "--round",
         "--battery",
     ]
@@ -186,9 +189,9 @@ def collect_reading(cfg: dict, logger: logging.Logger) -> dict | None:
                     for line in lines:
                         try:
                             reading = parse_reading(line)
-                            if reading.get("temperature") and reading.get("humidity"):
+                            if is_plausible(reading):
                                 last_reading = reading
-                        except json.JSONDecodeError:
+                        except ValueError:
                             pass
             except OSError:
                 pass
@@ -246,6 +249,15 @@ def parse_reading(line: str) -> dict:
         "batteryLevel": batteryLevel,
     }
 
+def is_plausible(reading: dict) -> bool:
+    """A reading with both values, and humidity above 0 %, which real air never reaches.
+    MiTemperature2 fills in 0 for values it hasn't heard yet."""
+    try:
+        float(reading["temperature"])
+        return float(reading["humidity"]) > 0
+    except (KeyError, ValueError):
+        return False
+
 def post_reading(reading: dict, cfg: dict, logger: logging.Logger) -> bool:
     """POST the reading as JSON to the configured API endpoint.  Returns True on success."""
     url = cfg["api_url"].strip()
@@ -266,7 +278,7 @@ def post_reading(reading: dict, cfg: dict, logger: logging.Logger) -> bool:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 status = resp.status
                 if 200 <= status < 300:
-                    logger.info("POST success (HTTP %d) to %s", status, url)
+                    logger.info("POST success (HTTP %d) to %s", status, loggable_url(url))
                     return True
                 else:
                     logger.warning("POST returned HTTP %d (attempt %d/%d)", status, attempt, retries + 1)
@@ -281,7 +293,7 @@ def post_reading(reading: dict, cfg: dict, logger: logging.Logger) -> bool:
             logger.info("Retrying in %d s …", retry_delay)
             time.sleep(retry_delay)
 
-    logger.error("All %d POST attempts failed for URL: %s", retries + 1, url)
+    logger.error("All %d POST attempts failed for URL: %s", retries + 1, loggable_url(url))
     return False
 
 
@@ -304,6 +316,12 @@ class GracefulShutdown:
         return self._stop.wait(timeout=timeout)
 
 
+def loggable_url(url: str) -> str:
+    """The URL without its path or query, which may hold a secret such as a webhook ID."""
+    parts = urllib.parse.urlsplit(url.strip())
+    return f"{parts.scheme}://{parts.hostname}/…"
+
+
 def run(cfg: dict, logger: logging.Logger) -> None:
     interval = int(cfg["interval_seconds"])
     shutdown = GracefulShutdown()
@@ -311,7 +329,7 @@ def run(cfg: dict, logger: logging.Logger) -> None:
     logger.info(
         "mi_temp_reporter started | interval=%ds  api=%s",
         interval,
-        cfg["api_url"],
+        loggable_url(cfg["api_url"]),
     )
 
     consecutive_failures = 0
